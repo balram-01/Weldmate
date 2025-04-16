@@ -5,30 +5,113 @@ import {
   TextInput,
   TouchableOpacity,
   Dimensions,
+  Alert,
 } from "react-native";
 import { Text } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import WavyHeader from "../../../component/weavyBg";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import ScreenNames from "../../../utils/screenNames";
+import { useResetPasswordRequestMutation, useVerifyOtpMutation } from "../../../redux/api/user";
+
+interface VerifyOtpResponse {
+  success: boolean;
+  message?: string;
+}
+
+interface VerifyOtpPayload {
+  email: string;
+  otp: string;
+}
 
 const EmailVerificationScreen = () => {
-  const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState(["", "", "", ""]);
-  const inputRefs = useRef([]);
- const navigation =useNavigation()
-  const handleOtpChange = (value, index) => {
+  const route = useRoute();
+  const navigation = useNavigation();
+  const {mode}=route.params;
+  const [verifyOtp, { isLoading: isVerifyLoading }] = useVerifyOtpMutation();
+  const [requestResetPassword, { isLoading: isResetLoading }] = useResetPasswordRequestMutation();
+  const [email, setEmail] = useState(route?.params?.email || "");
+  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+  const inputRefs = useRef<(TextInput | null)[]>([]);
+
+  const handleOtpChange = (value: string, index: number) => {
     if (value.length === 1 && index < otp.length - 1) {
-      inputRefs.current[index + 1]?.focus(); // Move cursor to next input
+      inputRefs.current[index + 1]?.focus();
     }
 
     if (value === "" && index > 0) {
-      inputRefs.current[index - 1]?.focus(); // Move cursor to previous input on delete
+      inputRefs.current[index - 1]?.focus();
     }
 
     const newOtp = [...otp];
     newOtp[index] = value;
     setOtp(newOtp);
+  };
+
+  const resendOtp = async () => {
+    try {
+      const resetResponse = await requestResetPassword({ email }).unwrap();
+      if (resetResponse.success) {
+        Alert.alert("Success", "A new OTP has been sent to your email");
+      } else {
+        Alert.alert("Error", resetResponse.message || "Failed to resend OTP");
+      }
+    } catch (error) {
+      console.error("Resend OTP error:", error);
+      let errorMessage = "An error occurred while resending OTP";
+      
+      if (error?.data?.message) {
+        errorMessage = error.data.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+      
+      Alert.alert("Error", errorMessage);
+    }
+  };
+
+  const submitOtp = async () => {
+    const otpValue = otp.join("");
+    if (otpValue.length !== 6) {
+      Alert.alert("Error", "Please enter a complete 6-digit OTP");
+      return;
+    }
+
+    try {
+      const payload: VerifyOtpPayload = {
+        email,
+        otp: otpValue,
+      };
+
+      const response = await verifyOtp(payload).unwrap();
+      console.log("otp submit Response:", response);
+
+      if (response.success) {
+        if(mode=='verify') {
+          navigation.replace(ScreenNames.HOME)   
+        }else{
+          navigation.replace(ScreenNames.RESET_PASSWORD, { email });
+        }
+
+      } else {
+        Alert.alert(
+          "Verification Failed",
+          response.message || "Something went wrong"
+        );
+      }
+    } catch (error) {
+      console.error("OTP verification error:", error);
+      let errorMessage = "An error occurred while verifying OTP";
+
+      if (error?.data) {
+        const apiError = error.data as VerifyOtpResponse;
+        errorMessage = apiError.message || errorMessage;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert("Error", errorMessage);
+    }
   };
 
   return (
@@ -44,7 +127,10 @@ const EmailVerificationScreen = () => {
         />
       </View>
       <View style={styles.headerContainer}>
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+        >
           <Icon name="arrow-left" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerText}>Email Verification</Text>
@@ -53,8 +139,9 @@ const EmailVerificationScreen = () => {
       {/* Email Heading */}
       <Text style={styles.emailHeading}>Get Your Code</Text>
       <Text style={styles.description}>
-        Please enter the 4-digit code sent to your email address
+        Please enter the 6-digit code sent to your email address
       </Text>
+
       {/* Content */}
       <View style={styles.content}>
         {/* OTP Input Fields */}
@@ -68,19 +155,39 @@ const EmailVerificationScreen = () => {
               maxLength={1}
               value={digit}
               onChangeText={(value) => handleOtpChange(value, index)}
+              editable={!isVerifyLoading && !isResetLoading} // Disable inputs during any loading
             />
           ))}
         </View>
 
         {/* Resend Code */}
-        <Text style={styles.resendText}>
-          If you don’t receive code!{" "}
-          <Text style={styles.resendLink}>Resend</Text>
-        </Text>
+        <TouchableOpacity 
+          onPress={resendOtp}
+          disabled={isResetLoading || isVerifyLoading}
+        >
+          <Text style={styles.resendText}>
+            If you don’t receive code!{" "}
+            <Text style={[
+              styles.resendLink,
+              (isResetLoading || isVerifyLoading) && styles.resendLinkDisabled
+            ]}>
+              {isResetLoading ? "Resending..." : "Resend"}
+            </Text>
+          </Text>
+        </TouchableOpacity>
 
         {/* Verify and Proceed Button */}
-        <TouchableOpacity onPress={()=>{navigation.navigate(ScreenNames.RESET_PASSWORD)}} style={styles.verifyButton}>
-          <Text style={styles.verifyButtonText}>Verify and Proceed</Text>
+        <TouchableOpacity
+          onPress={submitOtp}
+          style={[
+            styles.verifyButton,
+            (isVerifyLoading || isResetLoading) && styles.verifyButtonDisabled,
+          ]}
+          disabled={isVerifyLoading || isResetLoading}
+        >
+          <Text style={styles.verifyButtonText}>
+            {isVerifyLoading ? "Verifying..." : "Verify and Proceed"}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -117,53 +224,13 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 100,
   },
-
-  label: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "black",
-    marginBottom: 5,
-    marginLeft: 20,
-  },
-  inputContainer: {
-    backgroundColor: "#FAFAFA",
-    borderRadius: 25,
-    borderWidth: 1,
-    borderColor: "#E5E5E5",
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    marginHorizontal: 20,
-  },
-  input: {
-    fontSize: 16,
-    color: "black",
-  },
-  recoverButton: {
-    backgroundColor: "#E45537",
-    borderRadius: 25,
-    paddingVertical: 15,
-    alignItems: "center",
-    marginTop: 20,
-    marginHorizontal: 20,
-  },
-  recoverButtonText: {
-    fontSize: 16,
-    fontWeight: "bold",
-    color: "white",
-  },
   svgCurve: {
     position: "relative",
     width: Dimensions.get("window").width,
   },
   content: {
     alignItems: "center",
-    marginTop: 30, // Push content below the header
-  },
-  title: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: "#E45537",
-    marginTop: 20,
+    marginTop: 30,
   },
   description: {
     fontSize: 14,
@@ -195,11 +262,19 @@ const styles = StyleSheet.create({
     color: "#E45537",
     fontWeight: "bold",
   },
+  resendLinkDisabled: {
+    color: "#B5B5B5",
+    fontWeight: "normal",
+  },
   verifyButton: {
     backgroundColor: "#E45537",
     borderRadius: 25,
     paddingVertical: 15,
     paddingHorizontal: 50,
+  },
+  verifyButtonDisabled: {
+    backgroundColor: "#E45537AA",
+    opacity: 0.7,
   },
   verifyButtonText: {
     fontSize: 16,

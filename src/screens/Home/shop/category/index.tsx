@@ -9,48 +9,75 @@ import {
   StyleSheet,
 } from "react-native";
 import ScreenNames from "../../../../utils/screenNames";
-import { productImages } from "../../../../images";
+import { useGetProductCategoriesQuery } from "../../../../redux/api/product";
 
-const categories = [
-  {
-    id: "1",
-    name: "Welding",
-    image:productImages.product1,
-  },
-  {
-    id: "2",
-    name: "Cutting",
-    image:productImages.product2,
-  },
-  {
-    id: "3",
-    name: "Painting",
-    image: productImages.product1,
-  },
-  {
-    id: "4",
-    name: "Automation",
-    image: productImages.product2,
-  },
-];
+// Define the Category interface based on the JSON
+interface Category {
+  id: number;
+  name: string;
+  slug: string;
+  parent_id: number | null;
+  image: string;
+  created_at: string;
+  updated_at: string;
+  status: number;
+  deleted_at: string | null;
+  image_url: string;
+}
 
-const CategoryCard = ({ name, image }) => (
-  <View style={styles.card}>
-    <Image source={image} style={styles.image} />
-    <Text style={styles.text}>{name}</Text>
-  </View>
-);
+// Define the CategoriesResponse interface (optional, for clarity)
+interface CategoriesResponse {
+  success: boolean;
+  data: Category[];
+  message?: string;
+}
 
-const ShopByCategory = () => 
-  {
-    const navigation =useNavigation();
-    
+const CategoryCard = ({ id, name, image_url }: { id: number; name: string; image_url: string }) => {
+  const navigation = useNavigation();
+
+  return (
+    <TouchableOpacity
+      style={styles.card}
+      onPress={() => {
+        // Navigate to a category screen, passing the category ID
+        navigation.navigate(ScreenNames.ALL_CATEGORIES, { categoryId: id });
+      }}
+    >
+      <Image
+        source={{ uri: image_url }}
+        style={styles.image}
+        // defaultSource={require("../../../../images/placeholder.png")} // Optional: placeholder image
+      />
+      <Text style={styles.text}>{name}</Text>
+    </TouchableOpacity>
+  );
+};
+
+const ShopByCategory = () => {
+  const navigation = useNavigation();
+  const { data, isLoading, isError } = useGetProductCategoriesQuery(undefined);
+
+  // Extract categories from the API response
+  const categories: Category[] = data?.success && data?.data ? data.data : [];
+
+  if (isLoading) {
+    return <Text>Loading categories...</Text>;
+  }
+
+  if (isError || !categories.length) {
+    return <Text>No categories available.</Text>;
+  }
+
   return (
     <View style={{ marginBottom: 10 }}>
       {/* Title Section (OUTSIDE GREEN BOX) */}
       <View style={styles.header}>
         <Text style={styles.title}>Shop By Category</Text>
-        <TouchableOpacity onPress={()=>{navigation.navigate(ScreenNames.ALL_CATEGORIES)}}>
+        <TouchableOpacity
+          onPress={() => {
+            navigation.navigate(ScreenNames.ALL_CATEGORIES);
+          }}
+        >
           <Text style={styles.viewAll}>View All</Text>
         </TouchableOpacity>
       </View>
@@ -61,8 +88,8 @@ const ShopByCategory = () =>
           data={categories}
           horizontal
           showsHorizontalScrollIndicator={false}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <CategoryCard {...item} />}
+          keyExtractor={(item) => item.id.toString()} // Use toString() for type safety
+          renderItem={({ item }) => <CategoryCard id={item.id} name={item.name} image_url={item.image_url} />}
           contentContainerStyle={styles.list}
         />
       </View>
@@ -76,16 +103,16 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 15,
-    marginBottom: 5, // Space between title and green container
+    marginBottom: 5,
   },
   title: {
     fontSize: 18,
     fontWeight: "bold",
-    color: "#000", // Black color
+    color: "#000",
   },
   viewAll: {
     fontSize: 14,
-    color: "gray", // Greyish color
+    color: "gray",
   },
   container: {
     backgroundColor: "#EAF9E1",
@@ -113,6 +140,7 @@ const styles = StyleSheet.create({
     marginTop: 5,
     fontSize: 14,
     fontWeight: "bold",
+    textAlign: "center",
   },
 });
 

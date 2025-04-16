@@ -9,7 +9,7 @@ import React from "react";
 import type { PropsWithChildren } from "react";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import {
-  SafeAreaView,
+  Platform,
   ScrollView,
   StatusBar,
   StyleSheet,
@@ -18,42 +18,36 @@ import {
   View,
 } from "react-native";
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from "react-native/Libraries/NewAppScreen";
-import LoginScreen from "./src/screens/auth/login";
+import { Colors } from "react-native/Libraries/NewAppScreen";
+
 import { PaperProvider } from "react-native-paper";
-import RegisterScreen from "./src/screens/auth/register";
-import WelcomeBack from "./src/screens/auth/welcomeBack";
-import ForgotPasswordScreen from "./src/screens/auth/forgotPassword";
-import EmailVerificationScreen from "./src/screens/auth/emailVerification";
-import ResetPasswordScreen from "./src/screens/auth/resetPassword";
-import HomeScreen from "./src/screens/Home";
-import BottomNavigator from "./src/component/navigation/bottomnavigator";
 import AppNavigator from "./src/component/navigation/appNavigator";
+import { Provider } from "react-redux";
+import { store } from "./src/redux/store";
+import { SafeAreaProvider, SafeAreaView } from "react-native-safe-area-context";
 
 function App(): React.JSX.Element {
   const isDarkMode = useColorScheme() === "dark";
 
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
   return (
-    <SafeAreaView style={{ flex: 1 }}>
+    <Provider store={store}>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <PaperProvider>
-          <AppNavigator />
-        </PaperProvider>
+        <SafeAreaProvider style={{ flex: 1 }}>
+          <SafeAreaView
+            style={{
+              flex: 1,
+              backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
+            }}
+          >
+            <PaperProvider>
+              <AppNavigator />
+            </PaperProvider>
+          </SafeAreaView>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
-    </SafeAreaView>
+    </Provider>
   );
 }
-
 const styles = StyleSheet.create({
   sectionContainer: {
     marginTop: 32,

@@ -35,6 +35,11 @@ local.properties
 !debug.keystore
 .kotlin/
 
+# Ignore React Native bundle and generated assets
+android/app/src/main/assets/
+android/app/src/main/res/drawable-*
+android/app/src/main/res/raw/*
+
 # node.js
 #
 node_modules/

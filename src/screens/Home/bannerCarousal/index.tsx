@@ -6,15 +6,9 @@ import Carousel, {
   Pagination,
 } from "react-native-reanimated-carousel";
 
-const { width } = Dimensions.get("window");
 
-const bannerData = [
-  { id: 1, image: "https://picsum.photos/id/1/200/300" },
-  { id: 2, image: "https://picsum.photos/id/2/200/300" },
-  { id: 3, image: "https://picsum.photos/id/3/200/300" },
-];
 
-const BannerCarousel = () => {
+const BannerCarousel = ({ bannerData ,width}) => {
   const ref = React.useRef<ICarouselInstance>(null);
   const progress = useSharedValue<number>(0);
 
@@ -38,7 +32,7 @@ const BannerCarousel = () => {
         onProgressChange={progress}
         scrollAnimationDuration={800}
         renderItem={({ item }) => (
-          <Image source={{ uri: item.image }} style={styles.bannerImage} />
+          <Image source={item.image} style={styles.bannerImage} />
         )}
       />
 

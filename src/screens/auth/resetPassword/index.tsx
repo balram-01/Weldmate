@@ -1,15 +1,131 @@
 import React, { useState } from "react";
-import { View, StyleSheet, TextInput, TouchableOpacity, Dimensions } from "react-native";
+import {
+  View,
+  StyleSheet,
+  TextInput,
+  TouchableOpacity,
+  Dimensions,
+  Alert,
+} from "react-native";
 import { Text } from "react-native-paper";
 import Icon from "react-native-vector-icons/MaterialCommunityIcons";
 import WavyHeader from "../../../component/weavyBg";
-import { useNavigation } from "@react-navigation/native";
+import { useNavigation, useRoute } from "@react-navigation/native";
 import ScreenNames from "../../../utils/screenNames";
+import { useResetPasswordMutation } from "../../../redux/api/user";
+
+// Define API response and payload types
+interface ResetPasswordResponse {
+  success: boolean;
+  message: string;
+  errors?: {
+    email?: string[];
+    new_password?: string[];
+    [key: string]: string[] | undefined;
+  };
+}
+
+interface ResetPasswordPayload {
+  email: string;
+  new_password: string;
+  new_password_confirmation: string;
+}
 
 const ResetPasswordScreen = () => {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
- const navigation =useNavigation()
+  const [resetPassword, { isLoading }] = useResetPasswordMutation();
+  const navigation = useNavigation();
+  const route = useRoute();
+  const email = route?.params?.email || ""; // Get email from navigation params
+
+  // Validation function
+  const validateInputs = () => {
+    if (!password) {
+      Alert.alert("Error", "Please enter a new password");
+      return false;
+    }
+    if (password.length < 6) {
+      Alert.alert("Error", "Password must be at least 6 characters long");
+      return false;
+    }
+    if (!confirmPassword) {
+      Alert.alert("Error", "Please confirm your password");
+      return false;
+    }
+    if (password !== confirmPassword) {
+      Alert.alert("Error", "Passwords do not match");
+      return false;
+    }
+    return true;
+  };
+
+  const handleResetPassword = async () => {
+    if (!validateInputs()) {
+      return;
+    }
+
+    try {
+      const payload: ResetPasswordPayload = {
+        email,
+        new_password: password,
+        new_password_confirmation: confirmPassword,
+      };
+      const response = await resetPassword(payload).unwrap();
+      console.log("Reset password response:", response);
+
+      if (response.success) {
+        Alert.alert(
+          "Success",
+          response.message || "Password reset successfully",
+          [
+            {
+              text: "OK",
+              onPress: () => navigation.replace(ScreenNames.LOGIN),
+            },
+          ]
+        );
+      } else {
+        let errorMessage = response.message; // "Validation failed"
+        if (response.errors) {
+          const errorDetails = Object.entries(response.errors)
+            .map(([field, messages]) => {
+              const fieldName =
+                field === "new_password" ? "Password" : field.charAt(0).toUpperCase() + field.slice(1);
+              return `${fieldName}: ${messages?.join(", ")}`;
+            })
+            .join("\n");
+          errorMessage += `\n${errorDetails}`; // "Email: The selected email is invalid."
+        }
+        Alert.alert("Error", errorMessage);
+      }
+    } catch (error) {
+      console.error("Reset password error:", error);
+      let errorMessage = "An error occurred while resetting password";
+
+      if (error?.status === "PARSING_ERROR" && error?.data?.includes("<!doctype html>")) {
+        errorMessage = "Server error: Unexpected response received. Please try again later or contact support.";
+      } else if (error?.data) {
+        const apiError = error.data as ResetPasswordResponse;
+        errorMessage = apiError.message || errorMessage;
+        if (apiError.errors) {
+          const errorDetails = Object.entries(apiError.errors)
+            .map(([field, messages]) => {
+              const fieldName =
+                field === "new_password" ? "Password" : field.charAt(0).toUpperCase() + field.slice(1);
+              return `${fieldName}: ${messages?.join(", ")}`;
+            })
+            .join("\n");
+          errorMessage += `\n${errorDetails}`;
+        }
+      } else if (error?.message) {
+        errorMessage = error.message;
+      }
+
+      Alert.alert("Error", errorMessage);
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Wavy Header */}
@@ -23,7 +139,11 @@ const ResetPasswordScreen = () => {
         />
       </View>
       <View style={styles.headerContainer}>
-        <TouchableOpacity style={styles.backButton}>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => navigation.goBack()}
+          disabled={isLoading}
+        >
           <Icon name="arrow-left" size={24} color="white" />
         </TouchableOpacity>
         <Text style={styles.headerText}>Reset Password</Text>
@@ -46,6 +166,7 @@ const ResetPasswordScreen = () => {
           secureTextEntry
           value={password}
           onChangeText={setPassword}
+          editable={!isLoading}
         />
       </View>
 
@@ -60,12 +181,19 @@ const ResetPasswordScreen = () => {
           secureTextEntry
           value={confirmPassword}
           onChangeText={setConfirmPassword}
+          editable={!isLoading}
         />
       </View>
 
       {/* Continue Button */}
-      <TouchableOpacity onPress={()=>{navigation.navigate(ScreenNames.LOGIN)}} style={styles.continueButton}>
-        <Text style={styles.continueButtonText}>Continue</Text>
+      <TouchableOpacity
+        onPress={handleResetPassword}
+        style={[styles.continueButton, isLoading && styles.continueButtonDisabled]}
+        disabled={isLoading}
+      >
+        <Text style={styles.continueButtonText}>
+          {isLoading ? "Resetting..." : "Continue"}
+        </Text>
       </TouchableOpacity>
     </View>
   );
@@ -140,6 +268,10 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginTop: 20,
     marginHorizontal: 20,
+  },
+  continueButtonDisabled: {
+    backgroundColor: "#E45537AA",
+    opacity: 0.7,
   },
   continueButtonText: {
     fontSize: 16,
